@@ -223,7 +223,8 @@ flow.forEach(function(e,i,a) {
       // temporary flow line indicators
       // should be normalized with width indicating strength of flow?
       // TODO how to sqrt
-      var mag = sqrt(e.zonal[0]^2 + e.medial[0]^2); // total flow strength
+      //var mag = sqrt(e.zonal[0]^2 + e.medial[0]^2); // total flow strength
+      var mag = 0.06; 
 
       var uf = e.zonal[0] / mag;
       var vf = e.medial[0] / mag;
