@@ -100,7 +100,6 @@
    var proj_zoom = [220, 660];
    var sky_zoom = [300, 900];
 
-   //var proj = d3.geo.orthographic()
    var proj = d3.geo.orthographic()
    .translate([width / 2, height / 2])
    .clipAngle(90)
@@ -258,6 +257,18 @@ queue()
          flowLines.push(feature)
       })
 
+      svg.append("defs").append("marker")
+      	.attr("id", "arrowHead")
+      	.attr("viewBox", "0 0 10 10")
+      	.attr("refX", 10)
+      	.attr("refY", 5)
+      	.attr("orient", "auto")
+      	.attr("markerWidth", 2.0)
+      	.attr("markerHeight", 1.8) 
+      	.append("polyline")
+         .attr("points", "0,0 10,5 0,10 1,5")	  
+
+
       svg.append("g").attr("class","arcs")
       .selectAll("path").data(arcLines)
       .enter().append("path")
@@ -267,6 +278,7 @@ queue()
       svg.append("g").attr("class","currents")
       .selectAll("path").data(flowLines)
       .enter().append("path")
+      .style("marker-end", "url(#arrowHead)")
       .attr("class","flows")
       .attr("d",path)
       
@@ -301,18 +313,24 @@ queue()
             var source = [e.center[0]+uf, e.center[1]+vf]
             var target = [e.center[0]-uf, e.center[1]-vf]
             var feature = {"type":"Feature",
-               "geometry":{"type":"LineString","coordinates":[source,target]}}
+               "geometry":{"type":"LineString","coordinates":[source,target]},
+               "type":"Feature",
+               "properties":{"color":"Red"}}
             flowLines.push(feature)
             if (mag != 0) {
                test = [uf, vf];
             }
          })
-         console.log(test);
+
+         console.log(flowLines[0].properties);
+
          svg.select(".currents")
          .selectAll("path").data(flowLines)
          .enter().append("path")
          .attr("class","flows")
          .attr("d",path)
+         .attr("fill", function(d) {console.log(d.properties.color); return d.properties.color})
+         .attr("stroke", function(d) {console.log(d.properties.color); return d.properties.color});
 
          d3.select("#nPeriod-value").text(time_idx%72);
          d3.select("#nPeriod").property("value", time_idx%72);
