@@ -1,4 +1,6 @@
-%function grab_nc(filename, stride, outfile)
+function grab_nc(filename, stride, outfile)
+
+addpath('/home/klowrey/Dropbox/utils/jsonlab/');
 
 lat = ncread(filename, 'latitude');
 lon = ncread(filename, 'longitude');
