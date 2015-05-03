@@ -1,4 +1,4 @@
-function grab_nc(filename, stride, outfile)
+function grab_nc(filename, chance, outfile)
 
 addpath('/home/klowrey/Dropbox/utils/jsonlab/');
 
@@ -13,18 +13,20 @@ f_uf = zeros(length(lat)*length(lon),s(3) + 2);
 f_vf = zeros(length(lat)*length(lon),s(3) + 2);
 nans=0;
 index=0;
-for i = 1:stride:length(lon)
-    for j = 1:stride:length(lat)
+for i = 1:length(lon)
+    for j = 1:length(lat)
         if isnan(uf(i, j, 1))
             % discard
             nans = nans + 1;
         else
+            if rand < chance
             index = index+1;
             
             f_uf(index, :) = [ lon(i) lat(j) reshape(uf(i,j,:), [1, s(3)])];
             f_vf(index, :) = [ lon(i) lat(j) reshape(vf(i,j,:), [1, s(3)])];
 %             f_uf(index, 2) = lat(j);
 %             f_uf(index, 3:end) = uf(i,j,:);
+            end
         end
     end
 end

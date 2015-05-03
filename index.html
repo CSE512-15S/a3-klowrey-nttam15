@@ -38,12 +38,10 @@
       stroke-width: 3;
    }
    .flows {
-      opacity:.8;
       stroke: gray;
       stroke-width: 3;
    }
    .currents {
-      opacity:.8;
       stroke: gray;
       stroke-width: 3;
    }
@@ -120,7 +118,6 @@
 
    var links = [],
    arcLines = [],
-   flowLines = [],
    flow = [];
 
    var time_idx = 0;
@@ -135,8 +132,10 @@ queue()
    .defer(d3.json, "world-110m.json")
    //.defer(d3.json, "places.json")
    //.defer(d3.json, "data/2012_fifth_data.json")
-   .defer(d3.json, "data/2012_third_data.json")
-   //.defer(d3.json, "data/2012_half_data.json")
+   //.defer(d3.json, "data/2012_third_data.json")
+   .defer(d3.json, "data/2012_25percent.json")
+   //.defer(d3.json, "data/2012_10percent.ubjson") // looks like universal binary
+   // does not work TODO load with d3.xhr?
    .await(ready);
 
    // places is now the flow data
@@ -233,7 +232,6 @@ queue()
                });
          });
 
-
       // build geoJSON features from links array
       links.forEach(function(e,i,a) {
          // arclines can just use built in linestring d3 type
@@ -241,21 +239,7 @@ queue()
          arcLines.push(feature)
       })
 
-      flow.forEach(function(e,i,a) {
-         // temporary flow line indicators
-         // should be normalized with width indicating strength of flow?
-         var num = e.zonal.length;
-         var idx = time_idx % num;
-         var mag = Math.sqrt(e.zonal[idx]^2 + e.medial[idx]^2); // total flow strength
-
-         var uf = 10 * e.zonal[idx] / mag;
-         var vf = 10 * e.medial[idx] / mag;
-
-         var source = [e.center[0]+uf, e.center[1]+vf]
-         var target = [e.center[0]-uf, e.center[1]-vf]
-         var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[source,target]}}
-         flowLines.push(feature)
-      })
+      flowLines = make_flows(flow);
 
       svg.append("defs").append("marker")
       	.attr("id", "arrowHead")
@@ -268,7 +252,6 @@ queue()
       	.append("polyline")
          .attr("points", "0,0 10,5 0,10 1,5")	  
 
-
       svg.append("g").attr("class","arcs")
       .selectAll("path").data(arcLines)
       .enter().append("path")
@@ -278,7 +261,7 @@ queue()
       svg.append("g").attr("class","currents")
       .selectAll("path").data(flowLines)
       .enter().append("path")
-      .style("marker-end", "url(#arrowHead)")
+      //.style("marker-end", "url(#arrowHead)")
       .attr("class","flows")
       .attr("d",path)
       
@@ -296,41 +279,17 @@ queue()
       .each("start", function() {
          time_idx += 1;
          //console.log(time_idx);
-         flowLines = []; // clear out previous
 
-         var test = []
-
-         flow.forEach(function(e,i,a) {
-            // temporary flow line indicators
-            // should be normalized with width indicating strength of flow?
-            var num = e.zonal.length;
-            var idx = time_idx % num;
-            var mag = Math.sqrt(e.zonal[idx]^2 + e.medial[idx]^2); // total flow strength
-
-            var uf = 10 * e.zonal[idx] / mag;
-            var vf = 10 * e.medial[idx] / mag;
-
-            var source = [e.center[0]+uf, e.center[1]+vf]
-            var target = [e.center[0]-uf, e.center[1]-vf]
-            var feature = {"type":"Feature",
-               "geometry":{"type":"LineString","coordinates":[source,target]},
-               "type":"Feature",
-               "properties":{"color":"Red"}}
-            flowLines.push(feature)
-            if (mag != 0) {
-               test = [uf, vf];
-            }
-         })
-
-         console.log(flowLines[0].properties);
-
+         flowLines = [];
          svg.select(".currents")
-         .selectAll("path").data(flowLines)
+         .selectAll("path").data(make_flows(flow))
          .enter().append("path")
          .attr("class","flows")
-         .attr("d",path)
+         .attr("d",path);
+         /*
          .attr("fill", function(d) {console.log(d.properties.color); return d.properties.color})
          .attr("stroke", function(d) {console.log(d.properties.color); return d.properties.color});
+         */
 
          d3.select("#nPeriod-value").text(time_idx%72);
          d3.select("#nPeriod").property("value", time_idx%72);
@@ -341,6 +300,32 @@ queue()
       .each("end", transition);
       })();
 
+}
+
+function make_flows(locations) {
+      flowLines = []; // global
+      locations.forEach(function(e,i,a) {
+         // temporary flow line indicators
+         // should be normalized with width indicating strength of flow?
+         var num = e.zonal.length;
+         var idx = time_idx % num;
+         var mag = Math.sqrt(e.zonal[idx]*e.zonal[idx]
+            + e.medial[idx]*e.medial[idx]); // total flow strength
+         var norm= Math.abs(e.zonal[idx]) + Math.abs(e.medial[idx]);
+
+         // TODO input field for this threshold
+         if (Math.abs(mag) > 0.05) {
+            var uf = 0.8*e.zonal[idx] / mag;
+            var vf = 0.8*e.medial[idx] / mag;
+
+            var source = [e.center[0]+uf, e.center[1]+vf]
+            var target = [e.center[0]-uf, e.center[1]-vf]
+            var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[source,target]}}
+            //var feature = {"type":"Feature","geometry":{"type":"Polygon","coordinates":[source,target]}}
+            flowLines.push(feature)
+         }
+      })
+      return flowLines;
 }
 
 function flying_arc(pts) {
@@ -369,23 +354,35 @@ function refresh() {
    svg.selectAll(".land").attr("d", path);
    svg.selectAll("circle").attr("r", proj.scale());
 
+   /*
    svg.selectAll(".point").attr("d", path)
       .attr("opacity", function(d) {
             return fade_at_edge(d)
             });
+            */
 
+   /*
    svg.selectAll(".arc").attr("d", path)
       .attr("opacity", function(d) {
             return fade_at_edge(d)
             });
+            */
 
-   svg.selectAll(".flows").attr("d", path);
+   svg.selectAll(".flows").attr("d", path)
+      /*
+      .attr("opacity", function(d) {
+            return fade_at_edge(d)
+            });
+            // TODO looks nice but is processor intensive
+            */
 
+   /*
    svg.selectAll(".flyer")
       .attr("d", function(d) { return swoosh(flying_arc(d)) })
       .attr("opacity", function(d) {
             return fade_at_edge(d)
             });
+            */
 }
 
 function fade_at_edge(d) {
@@ -427,8 +424,8 @@ function mousemove() {
    if (m0) {
       var m1 = [d3.event.pageX, d3.event.pageY]
          , o1 = [o0[0] + (m1[0] - m0[0]) / 6, o0[1] + (m0[1] - m1[1]) / 6];
-      o1[1] = o1[1] > 30  ? 30  :
-         o1[1] < -30 ? -30 :
+      o1[1] = o1[1] > 45 ? 45 :
+         o1[1] < -45 ? -45 :
          o1[1];
       proj.rotate(o1);
       sky.rotate(o1);
@@ -449,12 +446,6 @@ function zoomed() {
    var z1 = d3.event.scale - 1;
    var s1 = Math.round((proj_zoom[1]-proj_zoom[0])*z1 + proj_zoom[0]);
    var s2 = Math.round((sky_zoom[1]-sky_zoom[0])*z1 + sky_zoom[0]);
-
-   console.log(s1);
-   //var = z1 - z0;
-   //o1[1] = o1[1] > 30  ? 30  :
-   //   o1[1] < -30 ? -30 :
-   //   o1[1];
 
    proj.scale(s1);
    sky.scale(s1);
