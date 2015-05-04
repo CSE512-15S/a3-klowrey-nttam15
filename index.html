@@ -296,7 +296,7 @@ queue()
 
       (function transition() {
       d3.transition()
-      .duration(200)
+      .duration(500)
       .each("start", function() {
          if (play_bool == true) {
             time_idx += 1;
@@ -338,12 +338,13 @@ function make_flows(locations) {
          //var norm= Math.abs(e.zonal[idx]) + Math.abs(e.medial[idx]);
 
          // TODO input field for this threshold
+         var boost = 5.0;
          if (Math.abs(mag) > 0.005) {
-            var uf = e.zonal[idx]; // / mag;
-            var vf = e.medial[idx]; // / mag;
+            var uf = e.zonal[idx];
+            var vf = e.medial[idx];
 
-            var source = [e.center[0]+2.0*uf, e.center[1]+2.0*vf];
-            var target = [e.center[0]-2.0*uf, e.center[1]-2.0*vf];
+            var source = [e.center[0]+boost*uf, e.center[1]+2.0*vf];
+            var target = [e.center[0]-boost*uf, e.center[1]-2.0*vf];
 
             var s1 = source;
             var s2 = target;
@@ -498,13 +499,6 @@ function refresh(bool) {
          .style("stroke", function(d) { return d.options.color;})
          .style("fill", function(d) { return d.options.color;})
          .style("stroke-width", function(d) { return d.options.zoom;})
-         //.style("stroke", function(d) { return d!=='undefined'?'black':d.options.color;})
-         //.style("fill", function(d) { return d!=='undefined'?'black':d.options.color;})
-         //.style("stroke-width", function(d) { return d!=='undefined'?0.0:d.options.zoom;})
-      //.selectAll("marker-end")
-      //.style("fill", function(d) { return d.options.color;})
-      //.style("stroke", function(d) { return d.options.color;})
-      //.style("stroke-width", function(d) { return d.options.zoom;})
 }
 
 function fade_at_edge(d) {
