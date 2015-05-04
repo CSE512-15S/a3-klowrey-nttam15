@@ -32,18 +32,31 @@ index=0;
 s = size(sst_all);
 t = zeros(length(lat)*length(lon),s(3) + 2);
 
-for i = 1:length(lon)
-    for j = 1:length(lat)
+s1 = 15;
+index = 0;
+j = 60:s1:(length(lat)-61);
+l = length(lon);
+mid = j(round(length(j)/2));
+func = -abs(j-mid);
+func = func - min(func) + 75;
+count = 1;
+for j = 60:s1:(length(lat)-61)
+    skip=round(l/func(count) * 2);
+    if skip > 15
+        skip = 15;
+    end
+    count = count + 1;
+    for i = 1:skip:l
         if isnan(sst_all(i, j, 1))
             % discard
             nans = nans + 1;
         else
-            if rand < chance
-                index = index+1;
-                
-                t(index,:) = [ lon(i) lat(j) reshape(sst_all(i,j,:), [1, s(3)])];
-                
-            end
+            %if rand < chance
+            index = index+1;
+            
+            t(index,:) = [ lon(i) lat(j) reshape(sst_all(i,j,:), [1, s(3)])];
+            
+            %end
         end
     end
 end

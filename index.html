@@ -3,7 +3,7 @@
 <style>
 
    .land {
-      fill: #999;
+      fill: #41ae76;
       stroke-opacity: 1;
    }
 
@@ -29,11 +29,11 @@
    .heat { 
    }
    .temperature { 
-      opacity: 0.5;
+      opacity: 1.0;
    }
 
    .flows {
-      //stroke-linejoin: round;
+      stroke-linejoin: round;
    }
    .currents {
       //stroke-linejoin: round;
@@ -49,8 +49,19 @@
          5d Time Period = <span id="nPeriod-value">…</span>
   </label>
   <input type="range" min="1" max="72" id="nPeriod">
-  // TODO button to stop / start the automatic transition
 </p>
+<div id="Pause">
+   <input name="stopButton" 
+   type="button" 
+   value="Pause" 
+   onclick="pause_button()" />
+</div>
+<div id="Resume">
+   <input name="startButton" 
+   type="button" 
+   value="Resume" 
+   onclick="resume_button()" />
+</div>
 
    <!--
    <script src="http://d3js.org/d3.v3.min.js"></script>
@@ -61,6 +72,8 @@
    <script src="scripts/queue.v1.min.js"></script>
    <script src="scripts/topojson.v0.min.js"></script>
    <script>
+    
+   var play_bool = true;
 
    d3.select(window)
    .on("mousemove", mousemove)
@@ -97,8 +110,8 @@
    .interpolate("cardinal")
    .tension(.0);
 
-   var flowLines = [],
-   tempspots = [],
+   var flowLines = [[]],
+   tempspots = [[]],
    celcius= [],
    flow = [];
 
@@ -116,7 +129,10 @@ queue()
    //.defer(d3.json, "data/2012_fifth_data.json")
    //.defer(d3.json, "data/2012_third_data.json")
    .defer(d3.json, "data/2012_25percent.json")
-   .defer(d3.json, "data/temp_2p.json")
+   //.defer(d3.json, "data/temp_2p.json")
+   //.defer(d3.json, "data/temper.json")
+   //.defer(d3.json, "data/temper_short.json")
+   .defer(d3.json, "data/temper_s.json")
    //.defer(d3.json, "data/2012_10percent.ubjson") // looks like universal binary
    // does not work TODO load with d3.xhr?
    .await(ready);
@@ -128,7 +144,7 @@ queue()
          .attr("cx", "75%")
          .attr("cy", "25%");
       ocean_fill.append("stop").attr("offset", "5%").attr("stop-color", "#fff");
-      ocean_fill.append("stop").attr("offset", "100%").attr("stop-color", "#0000dd");
+      ocean_fill.append("stop").attr("offset", "100%").attr("stop-color", "grey");
 
       var globe_highlight = svg.append("defs").append("radialGradient")
          .attr("id", "globe_highlight")
@@ -194,11 +210,13 @@ queue()
                });
          });
 
-      flowLines = make_flows(flow); // make global
-      tempspots = make_temps(celcius);
+      flowLines[time_idx] = make_flows(flow); // make global
+      console.log(flowLines[time_idx].length);
+      tempspots[time_idx] = make_temps(celcius);
       time_idx = 1;
-      tempspots = make_temps(celcius);
+      tempspots[time_idx] = make_temps(celcius);
       time_idx = 0;
+      //console.log(tempspots[time_idx].length);
 
       svg.append("defs").append("marker")
       	.attr("id", "arrowHead")
@@ -215,8 +233,39 @@ queue()
          //.enter().append("path")
          //.style("stroke", function(d) { return d.options.color;});
 
+         /*
+      svg.append("defs").append("marker")
+      	.attr("id", "hexagon")
+         .attr("viewBox", "0 0 10 10") 
+      	.attr("refX", 8)
+      	.attr("refY", 5)
+      	.attr("orient", "auto")
+         .attr("markerWidth", 2.0*normed_zoom)
+         .attr("markerHeight", 2.0*normed_zoom) 
+      	.append("polyline")
+         // a = 2.5, b = 4.33, c = 5
+         .attr("points", "0,7.5 0,2.5 4.33,0 8.66,2.5 8.66,7.5 4.33,10")	  
+         // TODO check arrow opacity, color
+         //.selectAll("path").data(tempspots[0])
+         //.enter().append("path")
+         //.style("stroke", function(d) { return d.options.color;})
+         //.style("stroke-width", function(d) { return d.options.zoom;})
+         */
+
+
+      svg.append("g").attr("class","heat")
+         .selectAll("text").data(tempspots[0])
+         .enter().append("path")
+         //.style("marker-end", "url(#hexagon)")
+         .attr("class", "temperature")
+         .attr("d", path)
+         .style("fill", function(d) { return d.options.color;})
+         .style("stroke", function(d) { return d.options.color;})
+         .style("stroke-width", function(d) { return d.options.zoom;})
+         //.style("opacity", function(d) { return d.options.opacity;})
+
       svg.append("g").attr("class","currents")
-         .selectAll("path").data(flowLines)
+         .selectAll("path").data(flowLines[0])
          .enter().append("path")
          //.style("marker-end", "url(#arrowHead)")
          .attr("class","flows")
@@ -226,15 +275,6 @@ queue()
          .style("opacity", function(d) { return d.options.opacity;})
          //.style("fill", function(d) { return d.options.color;})
 
-      svg.append("g").attr("class","heat")
-         .selectAll("text").data(tempspots)
-         .enter().append("path")
-         .attr("class", "temperature")
-         .attr("d", path)
-         //.style("fill", function(d) { return d.options.color;})
-         //.style("stroke", function(d) { return d.options.color;})
-         //.style("stroke-width", function(d) { return d.options.zoom;})
-         //.style("opacity", function(d) { return d.options.opacity;})
 
       svg.append("path")
          .datum(topojson.object(world, world.objects.land))
@@ -256,14 +296,16 @@ queue()
 
       (function transition() {
       d3.transition()
-      .duration(500)
+      .duration(200)
       .each("start", function() {
-         time_idx += 1;
+         if (play_bool == true) {
+            time_idx += 1;
 
-         d3.select("#nPeriod-value").text(time_idx%72);
-         d3.select("#nPeriod").property("value", time_idx%72);
-         
-         refresh(1);
+            d3.select("#nPeriod-value").text(time_idx%72);
+            d3.select("#nPeriod").property("value", time_idx%72);
+            
+            refresh(1);
+         }
       })
       .transition()
       .each("end", transition);
@@ -271,11 +313,22 @@ queue()
 
 }
 
+function pause_button() {
+   play_bool = false;
+}
+
+function resume_button() {
+   play_bool = true;
+}
+
+
 function make_flows(locations) {
    //console.log("making flow for time "+time_idx+" "+normed_zoom);
       var z = normed_zoom * 5 + 2;
-      flowLines = []; // global
       var idx = time_idx % 72;
+      if (flowLines[idx] !== 'undefined') {//; // global
+         console.log("making flow for "+idx);
+         flowLines[idx] = [];
       locations.forEach(function(e,i,a) {
          // temporary flow line indicators
          // should be normalized with width indicating strength of flow?
@@ -285,57 +338,94 @@ function make_flows(locations) {
          //var norm= Math.abs(e.zonal[idx]) + Math.abs(e.medial[idx]);
 
          // TODO input field for this threshold
-         if (Math.abs(mag) > 0.05) {
+         if (Math.abs(mag) > 0.005) {
             var uf = e.zonal[idx]; // / mag;
             var vf = e.medial[idx]; // / mag;
 
-            var source = [e.center[0]+uf, e.center[1]+vf];
-            var target = [e.center[0]-uf, e.center[1]-vf];
+            var source = [e.center[0]+2.0*uf, e.center[1]+2.0*vf];
+            var target = [e.center[0]-2.0*uf, e.center[1]-2.0*vf];
 
-            var side1 = [source[0]*0.75, source[1]*0.75];
-            var side2 = [e.center[0], e.center[1]-vf];
+            var s1 = source;
+            var s2 = target;
+            var m = 0.2;
+            var a = uf*mag, b = vf*mag;
+            if (uf < 0.0) {
+               a = a < -1.0*m ? a : -1.0*m;
+            }
+            else {
+               a = a > m ? a : m;
+            }
+            if (vf < 0.0) {
+               b = b < -1.0*m ? b : -1.0*m;
+            }
+            else {
+               b = b > m ? b : m;
+            }
+            var s3 = [e.center[0]+a, e.center[1]];
+            var s4 = [e.center[0], e.center[1]+b];
+            var s5 = target;
 
-            var color = mag > 0.2 ? "red" : "blue" ;
-            var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[source,target]},"options":{"opacity":mag*20.0,"color":color,"zoom":z}}
-            flowLines.push(feature)
+            //var color = mag > 0.2 ? "red" : "blue" ;
+            var color = "black";
+            //var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[source,target]},"options":{"opacity":mag*20.0,"color":color,"zoom":z}}
+            var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[s1,s2,s3,s4,s5]},"options":{"opacity":mag*10,"color":color,"zoom":z*0.5}}
+            flowLines[idx].push(feature)
 
             //flowLines[i] = feature;
          }
       })
+      }
       //console.log(flowLines.length+" "+z);
-      return flowLines;
+      return flowLines[idx];
 }
 
 function make_temps(locations) {
-      console.log("making flow for time "+time_idx+" "+normed_zoom);
       var z = normed_zoom * 5 + 2;
       var idx = time_idx % 72;
       var c = 0;
-      locations.forEach(function(e,i,a) {
-         if ((idx % 2 == 0 && i % 2 == 1)
-            || (idx % 2 == 1 && i % 2 == 0)) {
-         
-         var num = e.temp.length;
-         c += 1;
-         
-         var t = e.temp[idx];;
+      if (tempspots[idx] !== 'undefined'){
+         console.log("making temp for time "+time_idx+" "+normed_zoom);
+         tempspots[idx] = [];
+         locations.forEach(function(e,i,a) {
+            //if ((idx % 2 == 0 && i % 2 == 1)
+            //   || (idx % 2 == 1 && i % 2 == 0)) {
+            
+            var num = e.temp.length;
+            c += 1;
+            
+            var t = e.temp[idx];;
 
-         var s1 = [e.center[0]+3, e.center[1]];
-         var s2 = [e.center[0]+3, e.center[1]+3];
-         var s3 = [e.center[0], e.center[1]+3];
-         var s4 = [e.center[0], e.center[1]];
+            var a = 1.25, b = 2.156, c = 2.5;
+            /*
+            var s1 = [e.center[0]-2*a, e.center[1]+b-b];
+            var s2 = [e.center[0]+a-2*a, e.center[1]-b];
+            var s3 = [e.center[0]+a+c-2*a, e.center[1]-b];
+            var s4 = [e.center[0]+2*c-2*a, e.center[1]+b-b];
+            var s5 = [e.center[0]+a+c-2*a, e.center[1]+2*b-b];
+            var s6 = [e.center[0]+a-2*a, e.center[1]+2*b-b];
+            */
 
-         h = (1.0 - (t+1.8 / 36)) * 240
-         var color = "hsla(" + h + ", 100%, 50%)";
-         color = t > 30 ? "red" : t > 25 ? "orange" : t > 20 ? "yellow" : t > 15 ? "green" : "blue";
-         //var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[s1,s2,s3,s4]},"options":{"opacity":0.5,"color":d3.hsl(color),"zoom":z}}
-         var feature = {"type":"Feature","geometry":{"type":"Point","coordinates":e.center},"options":{"opacity":0.5,"color":color,"zoom":z*3}}
+            var s1 = [e.center[0]-b, e.center[1]-b];
+            var s2 = [e.center[0]+b, e.center[1]-b];
+            var s3 = [e.center[0]+b, e.center[1]+b];
+            var s4 = [e.center[0]-b, e.center[1]+b];
 
-         tempspots[i] = feature;
-         }
-      })
-      console.log(tempspots.length+" "+c);
-      return tempspots;
+            color = t > 33 ? "#e2402b" :
+               t > 30 ? "#e33e28" : 
+               t > 25 ? "#e5804a" : 
+               t > 20 ? "#f0b363" : 
+               t > 15 ? "#f1e376" : 
+               t > 10 ? "#e7eee6" : 
+               t > 5 ? "#b2d1d6" : "#5095be";
+            var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[s1,s2,s3,s4]},"options":{"opacity":0.5,"color":color,"zoom":z}}
+            //var feature = {"type":"Feature","geometry":{"type":"Point","coordinates":e.center},"options":{"opacity":1.0,"color":color,"zoom":z*3}}
+
+            tempspots[idx][i] = feature;
+            //}
+         })
+      }
+      //console.log(tempspots.length+" "+c);
+      return tempspots[idx];
 }
 function flying_arc(pts) {
    var source = pts.source,
@@ -369,15 +459,18 @@ function refresh(bool) {
 
    if (bool) {
       // new data
-      var f = make_flows(flow);
-      var t = make_temps(celcius);
+      console.log("bool refresh!");
 
+      /*
+      var f = make_flows(flow);
       svg.select(".currents")
          .selectAll("path").data(f)
          .enter().append("path")
          .attr("class","flows")
          .attr("d", path)
+         */
 
+      var t = make_temps(celcius);
       svg.select(".heat")
          .selectAll("path").data(t)
          .enter().append("path")
@@ -405,17 +498,23 @@ function refresh(bool) {
          // TODO looks nice but is processor intensive
          */
 
-   svg.selectAll(".temperature").attr("d", path)
+   //svg.selectAll(".temperature").attr("d", path)
 
    svg.selectAll(".flows").attr("d",path)
-         .style("stroke", function(d) { return d.options.color;})
-         .style("stroke-width", function(d) { return d.options.zoom;})
+         //.style("stroke", function(d) { return d.options.color;})
+         //.style("stroke-width", function(d) { return d.options.zoom;})
+
    svg.selectAll(".temperature").attr("d",path)
          .style("stroke", function(d) { return d.options.color;})
          .style("fill", function(d) { return d.options.color;})
          .style("stroke-width", function(d) { return d.options.zoom;})
+         //.style("stroke", function(d) { return d!=='undefined'?'black':d.options.color;})
+         //.style("fill", function(d) { return d!=='undefined'?'black':d.options.color;})
+         //.style("stroke-width", function(d) { return d!=='undefined'?0.0:d.options.zoom;})
       //.selectAll("marker-end")
       //.style("fill", function(d) { return d.options.color;})
+      //.style("stroke", function(d) { return d.options.color;})
+      //.style("stroke-width", function(d) { return d.options.zoom;})
 }
 
 function fade_at_edge(d) {
