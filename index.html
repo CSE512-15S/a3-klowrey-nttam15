@@ -14,14 +14,6 @@
       opacity:.2;
    }
 
-   .labels {
-      font: 8px sans-serif;
-      fill: black;
-      opacity: .5;
-
-      display:none;
-   }
-
    .noclicks {
       pointer-events:none;
    }
@@ -41,10 +33,25 @@
 
    p {
       font-family: "Arial", Helvetica, sans-serif;
+      width: 1200px;
    }
 
    h1 {
       font-family: "Arial", Helvetica, sans-serif;
+   }
+
+   .buttons {
+      padding: 1em;
+      float: left;
+   }
+   .button {
+      padding: 1em;
+   }
+
+   .legend {
+      text-align: right; 
+      padding-left: 35em;
+      padding-top: 0.5em;
    }
 
    .scrubber {
@@ -60,7 +67,7 @@
 <body>
 
    <h1>
-      Yo, 2012 Temp and current data.
+      Interaction: Temperature & Current in 2012
    </h1>
 <p>
   <label for="nPeriod" class="scrubber">
@@ -68,15 +75,52 @@
   </label>
   <input type="range" min="1" max="72" id="nPeriod">
 </p>
-<div id="Buttons">
+<div id="tools">
+   <div class="buttons">
    <input name="stopButton" 
    type="button" 
    value="Pause" 
+   class="button"
    onclick="pause_button()" />
    <input name="startButton" 
    type="button" 
    value="Resume" 
+   class="button"
    onclick="resume_button()" />
+</div>
+
+   <svg x="100" width="500" height="50" class="legend">
+      <text x="0" y="20" fill="black">33 C</text>
+      <rect x="0"   y="25" width="50" height="50" fill="#e23d2a" /> 
+      <rect x="50"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="55" y="20" fill="black">30 C</text>
+      <rect x="55"  y="25" width="50" height="50" fill="#e33e28" /> 
+      <rect x="105"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="110" y="20" fill="black">25 C</text>
+      <rect x="110"  y="25" width="50" height="50" fill="#e5804a" /> 
+      <rect x="160"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="165" y="20" fill="black">20 C</text>
+      <rect x="165"  y="25" width="50" height="50" fill="#f0b363" /> 
+      <rect x="215"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="220" y="20" fill="black">15 C</text>
+      <rect x="220" y="25" width="50" height="50" fill="#f1e376" /> 
+      <rect x="270"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="275" y="20" fill="black">10 C</text>
+      <rect x="275" y="25" width="50" height="50" fill="#e7eee6" /> 
+      <rect x="325"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="330" y="20" fill="black">5 C</text>
+      <rect x="330" y="25" width="50" height="50" fill="#88bcd1" /> 
+      <rect x="380"  y="25" width="5" height="50" fill="#ffffff" /> 
+
+      <text x="385" y="20" fill="black">&lt;5 C</text>
+      <rect x="385" y="25" width="50" height="50" fill="#5095be" /> 
+   </svg>
 </div>
 
    <!--
@@ -108,8 +152,8 @@
       .on("zoom", zoomed)
       .on("zoomend", zoomEnd);
 
-   var width = 1280,
-   height = 900;
+   var width = 1200,
+   height = 840;
 
    var proj_zoom = [220, 660];
    var normed_zoom = 0.0;
@@ -436,7 +480,8 @@ function make_temps(locations) {
             var s3 = [e.center[0]+b, e.center[1]+b];
             var s4 = [e.center[0]-b, e.center[1]+b];
 
-            color = t > 33 ? "#e2402b" :
+            color =
+               t > 33 ? "#e23d2a" :
                t > 30 ? "#e33e28" : 
                t > 25 ? "#e5804a" : 
                t > 20 ? "#f0b363" : 
