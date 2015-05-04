@@ -44,12 +44,12 @@
       padding: 1em;
       float: left;
    }
+
    .button {
       padding: 1em;
    }
 
    .legend {
-      text-align: right; 
       padding-left: 35em;
       padding-top: 0.5em;
    }
@@ -75,7 +75,7 @@
   </label>
   <input type="range" min="1" max="72" id="nPeriod">
 </p>
-<div id="tools">
+<div id="tools" class="tools">
    <div class="buttons">
    <input name="stopButton" 
    type="button" 
@@ -122,12 +122,6 @@
       <rect x="385" y="25" width="50" height="50" fill="#5095be" /> 
    </svg>
 </div>
-
-   <!--
-   <script src="http://d3js.org/d3.v3.min.js"></script>
-   <script src="http://d3js.org/queue.v1.min.js"></script>
-   <script src="http://d3js.org/topojson.v0.min.js"></script>
-   -->
    <script src="scripts/d3.v3.min.js"></script>
    <script src="scripts/queue.v1.min.js"></script>
    <script src="scripts/topojson.v0.min.js"></script>
@@ -249,9 +243,6 @@ queue()
          .style("fill", "url(#ocean_fill)");
 
 
-      // TODO could do something like above where it
-      // draw lines between adjacent coordinates
-      // TODO way to select which year of data to display?
          places.features.forEach(function(a) {
             flow.push({
                center: a.geometry.coordinates,
@@ -267,12 +258,10 @@ queue()
          });
 
       flowLines[time_idx] = make_flows(flow); // make global
-      console.log(flowLines[time_idx].length);
       tempspots[time_idx] = make_temps(celcius);
       time_idx = 1;
       tempspots[time_idx] = make_temps(celcius);
       time_idx = 0;
-      //console.log(tempspots[time_idx].length);
 
       svg.append("defs").append("marker")
       	.attr("id", "arrowHead")
@@ -284,41 +273,15 @@ queue()
          .attr("markerHeight", 1.8*normed_zoom) 
       	.append("polyline")
          .attr("points", "0,0 10,5 0,10 1,5")	  
-         // TODO check arrow opacity, color
-         //.selectAll("path").data(flowLines)
-         //.enter().append("path")
-         //.style("stroke", function(d) { return d.options.color;});
-
-         /*
-      svg.append("defs").append("marker")
-      	.attr("id", "hexagon")
-         .attr("viewBox", "0 0 10 10") 
-      	.attr("refX", 8)
-      	.attr("refY", 5)
-      	.attr("orient", "auto")
-         .attr("markerWidth", 2.0*normed_zoom)
-         .attr("markerHeight", 2.0*normed_zoom) 
-      	.append("polyline")
-         // a = 2.5, b = 4.33, c = 5
-         .attr("points", "0,7.5 0,2.5 4.33,0 8.66,2.5 8.66,7.5 4.33,10")	  
-         // TODO check arrow opacity, color
-         //.selectAll("path").data(tempspots[0])
-         //.enter().append("path")
-         //.style("stroke", function(d) { return d.options.color;})
-         //.style("stroke-width", function(d) { return d.options.zoom;})
-         */
-
 
       svg.append("g").attr("class","heat")
          .selectAll("text").data(tempspots[0])
          .enter().append("path")
-         //.style("marker-end", "url(#hexagon)")
          .attr("class", "temperature")
          .attr("d", path)
          .style("fill", function(d) { return d.options.color;})
          .style("stroke", function(d) { return d.options.color;})
          .style("stroke-width", function(d) { return d.options.zoom;})
-         //.style("opacity", function(d) { return d.options.opacity;})
 
       svg.append("g").attr("class","currents")
          .selectAll("path").data(flowLines[0])
@@ -329,8 +292,6 @@ queue()
          .style("stroke", function(d) { return d.options.color;})
          .style("stroke-width", function(d) { return d.options.zoom;})
          .style("opacity", function(d) { return d.options.opacity;})
-         //.style("fill", function(d) { return d.options.color;})
-
 
       svg.append("path")
          .datum(topojson.object(world, world.objects.land))
@@ -352,7 +313,6 @@ queue()
 
       d3.select("#nPeriod").on("input", function() {
             pause_button(); // freeze
-            console.log("inputting: "+this.value);
             var day = this.value * 5;
 
             d3.select("#nPeriod-value").text(periodFromDay(2012, day)+" to "+periodFromDay(2012, day+5));
@@ -400,11 +360,9 @@ function resume_button() {
 
 
 function make_flows(locations) {
-   //console.log("making flow for time "+time_idx+" "+normed_zoom);
       var z = normed_zoom * 5 + 2;
       var idx = time_idx % 72;
       if (flowLines[idx] !== 'undefined') {//; // global
-         console.log("making flow for "+idx);
          flowLines[idx] = [];
       locations.forEach(function(e,i,a) {
          // temporary flow line indicators
@@ -412,9 +370,6 @@ function make_flows(locations) {
          var num = e.zonal.length;
          var mag = Math.sqrt(e.zonal[idx]*e.zonal[idx]
             + e.medial[idx]*e.medial[idx]); // total flow strength
-         //var norm= Math.abs(e.zonal[idx]) + Math.abs(e.medial[idx]);
-
-         // TODO input field for this threshold
          var boost = 5.0;
          if (Math.abs(mag) > 0.05) {
             var uf = e.zonal[idx];
@@ -453,7 +408,6 @@ function make_flows(locations) {
          }
       })
       }
-      //console.log(flowLines.length+" "+z);
       return flowLines[idx];
 }
 
@@ -462,7 +416,6 @@ function make_temps(locations) {
       var idx = time_idx % 72;
       var c = 0;
       if (tempspots[idx] !== 'undefined'){
-         console.log("making temp for time "+time_idx+" "+normed_zoom);
          tempspots[idx] = [];
          locations.forEach(function(e,i,a) {
             //if ((idx % 2 == 0 && i % 2 == 1)
@@ -489,27 +442,17 @@ function make_temps(locations) {
                t > 10 ? "#e7eee6" : 
                t > 5 ? "#b2d1d6" : "#5095be";
             var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[s1,s2,s3,s4]},"options":{"opacity":0.5,"color":color,"zoom":z}}
-            //var feature = {"type":"Feature","geometry":{"type":"Point","coordinates":e.center},"options":{"opacity":1.0,"color":color,"zoom":z*3}}
 
             tempspots[idx][i] = feature;
             //}
          })
       }
-      //console.log(tempspots.length+" "+c);
       return tempspots[idx];
 }
 
 function refresh(bool) {
-      /*
-   svg.selectAll(".point").attr("d", path)
-      .attr("opacity", function(d) {
-            return fade_at_edge(d)
-            });
-            */
-
    if (bool) {
       // new data
-      console.log("bool refresh!");
 
       var f = make_flows(flow);
       svg.select(".currents")
@@ -531,26 +474,7 @@ function refresh(bool) {
    svg.selectAll("marker")
       .attr("markerHeight", 1.0*normed_zoom+3.0)
       .attr("markerWidth", 1.0*normed_zoom+2.0)
-      //.selectAll("path").data(f)
-      //.enter().append("path")
-      //.style("fill", function(d) { return d.options.color;});
-
-   //svg.selectAll("marker").attr("fill", "Blue");
-
-
-      /*
-   svg.selectAll(".flows").attr("d", path);
-      .attr("opacity", function(d) {
-         return fade_at_edge(d)
-         });
-         // TODO looks nice but is processor intensive
-         */
-
-   //svg.selectAll(".temperature").attr("d", path)
-
    svg.selectAll(".flows").attr("d",path)
-         //.style("stroke", function(d) { return d.options.color;})
-         //.style("stroke-width", function(d) { return d.options.zoom;})
 
    svg.selectAll(".temperature").attr("d",path)
          .style("stroke", function(d) { return d.options.color;})
