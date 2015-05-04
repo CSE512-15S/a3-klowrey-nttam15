@@ -396,14 +396,6 @@ function make_temps(locations) {
             var t = e.temp[idx];;
 
             var a = 1.25, b = 2.156, c = 2.5;
-            /*
-            var s1 = [e.center[0]-2*a, e.center[1]+b-b];
-            var s2 = [e.center[0]+a-2*a, e.center[1]-b];
-            var s3 = [e.center[0]+a+c-2*a, e.center[1]-b];
-            var s4 = [e.center[0]+2*c-2*a, e.center[1]+b-b];
-            var s5 = [e.center[0]+a+c-2*a, e.center[1]+2*b-b];
-            var s6 = [e.center[0]+a-2*a, e.center[1]+2*b-b];
-            */
 
             var s1 = [e.center[0]-b, e.center[1]-b];
             var s2 = [e.center[0]+b, e.center[1]-b];
@@ -461,14 +453,12 @@ function refresh(bool) {
       // new data
       console.log("bool refresh!");
 
-      /*
       var f = make_flows(flow);
       svg.select(".currents")
          .selectAll("path").data(f)
          .enter().append("path")
          .attr("class","flows")
          .attr("d", path)
-         */
 
       var t = make_temps(celcius);
       svg.select(".heat")
