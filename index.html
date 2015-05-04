@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+   .land {
+      fill: #595959;
+      stroke-opacity: 1;
+   }
+
+   .graticule {
+      fill: none;
+      stroke: black;
+      stroke-width:.5;
+      opacity:.2;
+   }
+
+   .noclicks {
+      pointer-events:none;
+   }
+
+   .heat { 
+   }
+   .temperature { 
+      opacity: 1.0;
+   }
+
+   .flows {
+      stroke-linejoin: round;
+   }
+   .currents {
+      //stroke-linejoin: round;
+   }
+
+   p {
+      font-family: "Arial", Helvetica, sans-serif;
+      width: 1200px;
+   }
+
+   h1 {
+      font-family: "Arial", Helvetica, sans-serif;
+   }
+
+   .buttons {
+      padding-left: 13em;
+      padding: 1em;
+      float: left;
+   }
+
+   .button {
+      padding: 1em;
+   }
+
+   .legend {
+      padding-left: 35em;
+      padding-top: 0.5em;
+   }
+
+   .scrubber {
+      display: inline-block;
+      width: 280px;
+      text-align: center; 
+      font-family: "Arial", Helvetica, sans-serif;
+      color: black;
+   }
+
+</style>
+
+<body>
+
+   <h1>
+      Interaction: Temperature & Current in 2012
+   </h1>
+<p>
+  <label for="nPeriod" class="scrubber">
+         Period: <span id="nPeriod-value">…</span>
+  </label>
+  <input type="range" min="1" max="72" id="nPeriod">
+</p>
+<p>
+   <div class="buttons">
+   <input name="stopButton" 
+   type="button" 
+   value="Pause" 
+   class="button"
+   onclick="pause_button()" />
+   <input name="startButton" 
+   type="button" 
+   value="Resume" 
+   class="button"
+   onclick="resume_button()" />
+   </div>
+
+   <svg x="100" width="500" height="50" class="legend">
+      <text x="0" y="20" fill="black">33 C</text>
+      <rect x="0"   y="25" width="50" height="50" fill="#e23d2a" /> 
+      <rect x="50"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="55" y="20" fill="black">30 C</text>
+      <rect x="55"  y="25" width="50" height="50" fill="#e33e28" /> 
+      <rect x="105"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="110" y="20" fill="black">25 C</text>
+      <rect x="110"  y="25" width="50" height="50" fill="#e5804a" /> 
+      <rect x="160"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="165" y="20" fill="black">20 C</text>
+      <rect x="165"  y="25" width="50" height="50" fill="#f0b363" /> 
+      <rect x="215"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="220" y="20" fill="black">15 C</text>
+      <rect x="220" y="25" width="50" height="50" fill="#f1e376" /> 
+      <rect x="270"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="275" y="20" fill="black">10 C</text>
+      <rect x="275" y="25" width="50" height="50" fill="#e7eee6" /> 
+      <rect x="325"  y="25" width="5" height="50" fill="#ffffff" /> 
+   
+      <text x="330" y="20" fill="black">5 C</text>
+      <rect x="330" y="25" width="50" height="50" fill="#88bcd1" /> 
+      <rect x="380"  y="25" width="5" height="50" fill="#ffffff" /> 
+
+      <text x="385" y="20" fill="black">&lt;5 C</text>
+      <rect x="385" y="25" width="50" height="50" fill="#5095be" /> 
+   </svg>
+</p>
+   <script src="scripts/d3.v3.min.js"></script>
+   <script src="scripts/queue.v1.min.js"></script>
+   <script src="scripts/topojson.v0.min.js"></script>
+   <script>
+    
+   var play_bool = true;
+
+   var monthNames = [
+        "January", "February", "March",
+        "April", "May", "June", "July",
+        "August", "September", "October",
+        "November", "December"
+    ];
+
+   d3.select(window)
+   .on("mousemove", mousemove)
+   .on("mouseup", mouseup);
+
+   var zoom = d3.behavior.zoom()
+      .scaleExtent([1, 2])
+      .on("zoomstart", zoomStart)
+      .on("zoom", zoomed)
+      .on("zoomend", zoomEnd);
+
+   var width = 1200,
+   height = 840;
+
+   var proj_zoom = [220, 660];
+   var normed_zoom = 0.0;
+
+   var proj = d3.geo.orthographic()
+   .translate([width / 2, height / 2])
+   .clipAngle(90)
+   .scale(220);
+
+   var path = d3.geo.path().projection(proj).pointRadius(2);
+
+   var flowLines = [[]],
+   tempspots = [[]],
+   celcius= [],
+   flow = [];
+
+   var time_idx = 0;
+
+   var svg = d3.select("body").append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .on("mousedown", mousedown)
+      .call(zoom);
+
+queue()
+   .defer(d3.json, "world-110m.json")
+   .defer(d3.json, "data/2012_25percent.json")
+   .defer(d3.json, "data/temper_s.json")
+   .await(ready);
+
+   function ready(error, world, places, temp) {
+      var borderPath = svg.append("rect")
+         .attr("x", 0)
+         .attr("y", 0)
+         .attr("height", height)
+         .attr("width", width)
+         .style("stroke", "#000")
+         .style("fill", "#252525")
+         .style("stroke-width", 2.0);
+
+      var ocean_fill = svg.append("defs").append("radialGradient")
+         .attr("id", "ocean_fill")
+         .attr("cx", "75%")
+         .attr("cy", "25%");
+
+      ocean_fill.append("stop").attr("offset", "5%").attr("stop-color", "#fff");
+      ocean_fill.append("stop").attr("offset", "100%").attr("stop-color", "grey");
+
+      var globe_highlight = svg.append("defs").append("radialGradient")
+         .attr("id", "globe_highlight")
+         .attr("cx", "75%")
+         .attr("cy", "25%");
+      globe_highlight.append("stop")
+         .attr("offset", "5%").attr("stop-color", "#ffd")
+         .attr("stop-opacity","0.6");
+      globe_highlight.append("stop")
+         .attr("offset", "100%").attr("stop-color", "#ba9")
+         .attr("stop-opacity","0.2");
+
+      var globe_shading = svg.append("defs").append("radialGradient")
+         .attr("id", "globe_shading")
+         .attr("cx", "55%")
+         .attr("cy", "45%");
+      globe_shading.append("stop")
+         .attr("offset","10%").attr("stop-color", "#000")
+         .attr("stop-opacity","0")
+         globe_shading.append("stop")
+         .attr("offset","100%").attr("stop-color", "#505962")
+         .attr("stop-opacity","0.3")
+
+      var drop_shadow = svg.append("defs").append("radialGradient")
+         .attr("id", "drop_shadow")
+         .attr("cx", "50%")
+         .attr("cy", "50%");
+      drop_shadow.append("stop")
+         .attr("offset","20%").attr("stop-color", "#000")
+         .attr("stop-opacity",".5")
+         drop_shadow.append("stop")
+         .attr("offset","100%").attr("stop-color", "#000")
+         .attr("stop-opacity","0")  
+
+      svg.append("ellipse")
+         .attr("cx", width / 2).attr("cy", height * 0.8)
+         .attr("rx", proj.scale()*.90)
+         .attr("ry", proj.scale()*.25)
+         .attr("class", "noclicks")
+         .style("fill", "url(#drop_shadow)");
+
+      svg.append("circle")
+         .attr("cx", width / 2).attr("cy", height / 2)
+         .attr("r", proj.scale())
+         .attr("class", "noclicks")
+         .style("fill", "url(#ocean_fill)");
+
+
+         places.features.forEach(function(a) {
+            flow.push({
+               center: a.geometry.coordinates,
+               zonal: a.geometry.uf,
+               medial: a.geometry.vf
+               });
+         });
+         temp.features.forEach(function(a) {
+            celcius.push({
+               center: a.geometry.coordinates,
+               temp: a.geometry.temp
+               });
+         });
+
+      flowLines[time_idx] = make_flows(flow); // make global
+      tempspots[time_idx] = make_temps(celcius);
+      time_idx = 1;
+      tempspots[time_idx] = make_temps(celcius);
+      time_idx = 0;
+
+      svg.append("defs").append("marker")
+      	.attr("id", "arrowHead")
+         .attr("viewBox", "0 0 10 10") 
+      	.attr("refX", 8)
+      	.attr("refY", 5)
+      	.attr("orient", "auto")
+         .attr("markerWidth", 2.0*normed_zoom)
+         .attr("markerHeight", 1.8*normed_zoom) 
+      	.append("polyline")
+         .attr("points", "0,0 10,5 0,10 1,5")	  
+
+      svg.append("g").attr("class","heat")
+         .selectAll("text").data(tempspots[0])
+         .enter().append("path")
+         .attr("class", "temperature")
+         .attr("d", path)
+         .style("fill", function(d) { return d.options.color;})
+         .style("stroke", function(d) { return d.options.color;})
+         .style("stroke-width", function(d) { return d.options.zoom;})
+
+      svg.append("g").attr("class","currents")
+         .selectAll("path").data(flowLines[0])
+         .enter().append("path")
+         //.style("marker-end", "url(#arrowHead)")
+         .attr("class","flows")
+         .attr("d",path)
+         .style("stroke", function(d) { return d.options.color;})
+         .style("stroke-width", function(d) { return d.options.zoom;})
+         .style("opacity", function(d) { return d.options.opacity;})
+
+      svg.append("path")
+         .datum(topojson.object(world, world.objects.land))
+         .attr("class", "land noclicks")
+         .attr("d", path);
+
+      svg.append("circle")
+         .attr("cx", width / 2).attr("cy", height / 2)
+         .attr("r", proj.scale())
+         .attr("class","noclicks")
+         .style("fill", "url(#globe_highlight)");
+
+      svg.append("circle")
+         .attr("cx", width / 2).attr("cy", height / 2)
+         .attr("r", proj.scale())
+         .attr("class","noclicks")
+         .style("fill", "url(#globe_shading)");
+      refresh(0);
+
+      d3.select("#nPeriod").on("input", function() {
+            pause_button(); // freeze
+            var day = this.value * 5;
+
+            d3.select("#nPeriod-value").text(periodFromDay(2012, day)+" to "+periodFromDay(2012, day+5));
+            d3.select("#nPeriod").property("value", this.value);
+
+            time_idx = this.value % 72;
+            refresh(1);
+         });
+
+      (function transition() {
+      d3.transition()
+      .duration(500)
+      .each("start", function() {
+         if (play_bool == true) {
+            time_idx += 1;
+
+            var day = (time_idx % 72) * 5;
+
+            d3.select("#nPeriod-value").text(periodFromDay(2012, day)+" to "+periodFromDay(2012, day+5));
+            d3.select("#nPeriod").property("value", time_idx%72);
+
+            refresh(1);
+         }
+      })
+      .transition()
+      .each("end", transition);
+      })();
+
+}
+
+function periodFromDay(year, day) {
+   var date = new Date(year,0);
+   var period = new Date(date.setDate(day));
+   var s =  monthNames[period.getMonth()]+" "+(period.getDate());
+   return s;
+}
+
+function pause_button() {
+   play_bool = false;
+}
+
+function resume_button() {
+   play_bool = true;
+}
+
+
+function make_flows(locations) {
+      var z = normed_zoom * 5 + 2;
+      var idx = time_idx % 72;
+      if (flowLines[idx] !== 'undefined') {//; // global
+         flowLines[idx] = [];
+      locations.forEach(function(e,i,a) {
+         // temporary flow line indicators
+         // should be normalized with width indicating strength of flow?
+         var num = e.zonal.length;
+         var mag = Math.sqrt(e.zonal[idx]*e.zonal[idx]
+            + e.medial[idx]*e.medial[idx]); // total flow strength
+         var boost = 5.0;
+         if (Math.abs(mag) > 0.05) {
+            var uf = e.zonal[idx];
+            var vf = e.medial[idx];
+
+            var source = [e.center[0]+boost*uf, e.center[1]+2.0*vf];
+            var target = [e.center[0]-boost*uf, e.center[1]-2.0*vf];
+
+            var s1 = source;
+            var s2 = target;
+            var m = 0.2;
+            var a = uf*mag, b = vf*mag;
+            if (uf < 0.0) {
+               a = a < -1.0*m ? a : -1.0*m;
+            }
+            else {
+               a = a > m ? a : m;
+            }
+            if (vf < 0.0) {
+               b = b < -1.0*m ? b : -1.0*m;
+            }
+            else {
+               b = b > m ? b : m;
+            }
+            var s3 = [e.center[0]+a, e.center[1]];
+            var s4 = [e.center[0], e.center[1]+b];
+            var s5 = target;
+
+            //var color = mag > 0.2 ? "red" : "blue" ;
+            var color = "black";
+            //var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[source,target]},"options":{"opacity":mag*20.0,"color":color,"zoom":z}}
+            var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[s1,s2,s3,s4,s5]},"options":{"opacity":mag*10,"color":color,"zoom":z*0.5}}
+            flowLines[idx].push(feature)
+
+            //flowLines[i] = feature;
+         }
+      })
+      }
+      return flowLines[idx];
+}
+
+function make_temps(locations) {
+      var z = normed_zoom * 5 + 2;
+      var idx = time_idx % 72;
+      var c = 0;
+      if (tempspots[idx] !== 'undefined'){
+         tempspots[idx] = [];
+         locations.forEach(function(e,i,a) {
+            //if ((idx % 2 == 0 && i % 2 == 1)
+            //   || (idx % 2 == 1 && i % 2 == 0)) {
+            
+            var num = e.temp.length;
+            c += 1;
+            
+            var t = e.temp[idx];;
+
+            var a = 1.25, b = 2.156, c = 2.5;
+
+            var s1 = [e.center[0]-b, e.center[1]-b];
+            var s2 = [e.center[0]+b, e.center[1]-b];
+            var s3 = [e.center[0]+b, e.center[1]+b];
+            var s4 = [e.center[0]-b, e.center[1]+b];
+
+            color =
+               t > 33 ? "#e23d2a" :
+               t > 30 ? "#e33e28" : 
+               t > 25 ? "#e5804a" : 
+               t > 20 ? "#f0b363" : 
+               t > 15 ? "#f1e376" : 
+               t > 10 ? "#e7eee6" : 
+               t > 5 ? "#b2d1d6" : "#5095be";
+            var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[s1,s2,s3,s4]},"options":{"opacity":0.5,"color":color,"zoom":z}}
+
+            tempspots[idx][i] = feature;
+            //}
+         })
+      }
+      return tempspots[idx];
+}
+
+function refresh(bool) {
+   if (bool) {
+      // new data
+
+      var f = make_flows(flow);
+      svg.select(".currents")
+         .selectAll("path").data(f)
+         .enter().append("path")
+         .attr("class","flows")
+         .attr("d", path)
+
+      var t = make_temps(celcius);
+      svg.select(".heat")
+         .selectAll("path").data(t)
+         .enter().append("path")
+         .attr("class","temperature")
+         .attr("d", path)
+   }
+   svg.selectAll(".land").attr("d", path);
+   svg.selectAll("circle").attr("r", proj.scale());
+
+   svg.selectAll("marker")
+      .attr("markerHeight", 1.0*normed_zoom+3.0)
+      .attr("markerWidth", 1.0*normed_zoom+2.0)
+   svg.selectAll(".flows").attr("d",path)
+
+   svg.selectAll(".temperature").attr("d",path)
+         .style("stroke", function(d) { return d.options.color;})
+         .style("fill", function(d) { return d.options.color;})
+         .style("stroke-width", function(d) { return d.options.zoom;})
+}
+
+function fade_at_edge(d) {
+   var centerPos = proj.invert([width/2,height/2]),
+       arc = d3.geo.greatArc(),
+       start, end;
+   // function is called on 2 different data structures..
+   if (d.source) {
+      start = d.source, 
+            end = d.target;  
+   }
+   else {
+      start = d.geometry.coordinates[0];
+      end = d.geometry.coordinates[1];
+   }
+
+   var start_dist = 1.57 - arc.distance({source: start, target: centerPos}),
+       end_dist = 1.57 - arc.distance({source: end, target: centerPos});
+
+   var fade = d3.scale.linear().domain([-.1,0]).range([0,.1]) 
+      var dist = start_dist < end_dist ? start_dist : end_dist; 
+
+   return fade(dist)
+}
+
+function location_along_arc(start, end, loc) {
+   var interpolator = d3.geo.interpolate(start,end);
+   return interpolator(loc)
+}
+
+// modified from http://bl.ocks.org/1392560
+var m0, o0, z0;
+function mousedown() {
+   m0 = [d3.event.pageX, d3.event.pageY];
+   o0 = proj.rotate();
+   d3.event.preventDefault();
+}
+function mousemove() {
+   if (m0) {
+      var m1 = [d3.event.pageX, d3.event.pageY]
+         , o1 = [o0[0] + (m1[0] - m0[0]) / 6, o0[1] + (m0[1] - m1[1]) / 6];
+      o1[1] = o1[1] > 45 ? 45 :
+         o1[1] < -45 ? -45 :
+         o1[1];
+      proj.rotate(o1);
+      refresh(0);
+   }
+}
+function mouseup() {
+   if (m0) {
+      mousemove();
+      m0 = null;
+   }
+}
+function zoomStart() {
+   z0 = d3.event.scale;
+}
+
+function zoomed() {
+   normed_zoom = d3.event.scale - 1.0;
+   var s1 = Math.round((proj_zoom[1]-proj_zoom[0])*normed_zoom+ proj_zoom[0]);
+
+   proj.scale(s1);
+   refresh(0);
+}
+
+function zoomEnd() {
+
+}
+   </script>
+   <p>
+      This visualization allows the user to explore the interaction between surface current flow and temperature across the worlds oceans. 2012 was a year with abnormal weather patters; the world's oceans act as a regulator for the weather. As all the bodies of water are connected, it is useful to explore this data as a representation of where it actually is: on a globe.
+   </p>
+   <p>
+      Current lines are drawn with a small arrow indicating flow direction, with opacity and length of the arrow vector indicating flow strength. As shape sizes on a digital screen are difficult to measure with the human eye, the current vectors are meant to give a sense as to the flow of water in a particular region, not as a means to record and study particular values.
+   </p>
+   <p>
+      Temperature is binned into zones. Obviously the warmest waters are along the world's equators, but it becomes apparent that the current flow pushes colder or warmer waters into different zones along coasts and gulfs while sometimes aggregating in the open expanses of ocean.
+   </p>
+</body>
+
