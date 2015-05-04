@@ -7,10 +7,6 @@
       stroke-opacity: 1;
    }
 
-   .bg {
-      fill: #999;
-   }
-
    .graticule {
       fill: none;
       stroke: black;
@@ -30,34 +26,18 @@
       pointer-events:none;
    }
 
-   .point {  opacity:.6; }
-
-   .arcs {
-      opacity:.1;
-      stroke: gray;
-      stroke-width: 3;
+   .heat { 
    }
+   .temperature { 
+      opacity: 0.5;
+   }
+
    .flows {
-      stroke: gray;
-      stroke-width: 3;
+      //stroke-linejoin: round;
    }
    .currents {
-      stroke: gray;
-      stroke-width: 3;
+      //stroke-linejoin: round;
    }
-
-   .flyers {
-      stroke-width:1;
-      opacity: .6;
-      stroke: darkred; 
-   }
-   .arc, .flyer {
-      stroke-linejoin: round;
-      fill:none;
-   }
-   .arc { }
-   .flyer { }
-   .flyer:hover { }
 
 </style>
 
@@ -97,6 +77,7 @@
 
    var proj_zoom = [220, 660];
    var sky_zoom = [300, 900];
+   var normed_zoom = 0.0;
 
    var proj = d3.geo.orthographic()
    .translate([width / 2, height / 2])
@@ -116,8 +97,9 @@
    .interpolate("cardinal")
    .tension(.0);
 
-   var links = [],
-   arcLines = [],
+   var flowLines = [],
+   tempspots = [],
+   celcius= [],
    flow = [];
 
    var time_idx = 0;
@@ -134,18 +116,19 @@ queue()
    //.defer(d3.json, "data/2012_fifth_data.json")
    //.defer(d3.json, "data/2012_third_data.json")
    .defer(d3.json, "data/2012_25percent.json")
+   .defer(d3.json, "data/temp_2p.json")
    //.defer(d3.json, "data/2012_10percent.ubjson") // looks like universal binary
    // does not work TODO load with d3.xhr?
    .await(ready);
 
    // places is now the flow data
-   function ready(error, world, places) {
+   function ready(error, world, places, temp) {
       var ocean_fill = svg.append("defs").append("radialGradient")
          .attr("id", "ocean_fill")
          .attr("cx", "75%")
          .attr("cy", "25%");
       ocean_fill.append("stop").attr("offset", "5%").attr("stop-color", "#fff");
-      ocean_fill.append("stop").attr("offset", "100%").attr("stop-color", "#ffffff");
+      ocean_fill.append("stop").attr("offset", "100%").attr("stop-color", "#0000dd");
 
       var globe_highlight = svg.append("defs").append("radialGradient")
          .attr("id", "globe_highlight")
@@ -193,6 +176,66 @@ queue()
          .attr("class", "noclicks")
          .style("fill", "url(#ocean_fill)");
 
+
+      // TODO could do something like above where it
+      // draw lines between adjacent coordinates
+      // TODO way to select which year of data to display?
+         places.features.forEach(function(a) {
+            flow.push({
+               center: a.geometry.coordinates,
+               zonal: a.geometry.uf,
+               medial: a.geometry.vf
+               });
+         });
+         temp.features.forEach(function(a) {
+            celcius.push({
+               center: a.geometry.coordinates,
+               temp: a.geometry.temp
+               });
+         });
+
+      flowLines = make_flows(flow); // make global
+      tempspots = make_temps(celcius);
+      time_idx = 1;
+      tempspots = make_temps(celcius);
+      time_idx = 0;
+
+      svg.append("defs").append("marker")
+      	.attr("id", "arrowHead")
+         .attr("viewBox", "0 0 10 10") 
+      	.attr("refX", 8)
+      	.attr("refY", 5)
+      	.attr("orient", "auto")
+         .attr("markerWidth", 2.0*normed_zoom)
+         .attr("markerHeight", 1.8*normed_zoom) 
+      	.append("polyline")
+         .attr("points", "0,0 10,5 0,10 1,5")	  
+         // TODO check arrow opacity, color
+         //.selectAll("path").data(flowLines)
+         //.enter().append("path")
+         //.style("stroke", function(d) { return d.options.color;});
+
+      svg.append("g").attr("class","currents")
+         .selectAll("path").data(flowLines)
+         .enter().append("path")
+         //.style("marker-end", "url(#arrowHead)")
+         .attr("class","flows")
+         .attr("d",path)
+         .style("stroke", function(d) { return d.options.color;})
+         .style("stroke-width", function(d) { return d.options.zoom;})
+         .style("opacity", function(d) { return d.options.opacity;})
+         //.style("fill", function(d) { return d.options.color;})
+
+      svg.append("g").attr("class","heat")
+         .selectAll("text").data(tempspots)
+         .enter().append("path")
+         .attr("class", "temperature")
+         .attr("d", path)
+         //.style("fill", function(d) { return d.options.color;})
+         //.style("stroke", function(d) { return d.options.color;})
+         //.style("stroke-width", function(d) { return d.options.zoom;})
+         //.style("opacity", function(d) { return d.options.opacity;})
+
       svg.append("path")
          .datum(topojson.object(world, world.objects.land))
          .attr("class", "land noclicks")
@@ -209,92 +252,18 @@ queue()
          .attr("r", proj.scale())
          .attr("class","noclicks")
          .style("fill", "url(#globe_shading)");
-
-      /*
-         // GRID POINTS
-      svg.append("g").attr("class","points")
-         .selectAll("text").data(places.features)
-         .enter().append("path")
-         .attr("class", "point")
-         .attr("d", path);
-         */
-
-      // spawn links between cities as source/target coord pairs
-      
-      // TODO could do something like above where it
-      // draw lines between adjacent coordinates
-      // TODO way to select which year of data to display?
-         places.features.forEach(function(a) {
-            flow.push({
-               center: a.geometry.coordinates,
-               zonal: a.geometry.uf,
-               medial: a.geometry.vf
-               });
-         });
-
-      // build geoJSON features from links array
-      links.forEach(function(e,i,a) {
-         // arclines can just use built in linestring d3 type
-         var feature =   { "type": "Feature", "geometry": { "type": "LineString", "coordinates": [e.source,e.target] }}
-         arcLines.push(feature)
-      })
-
-      flowLines = make_flows(flow);
-
-      svg.append("defs").append("marker")
-      	.attr("id", "arrowHead")
-      	.attr("viewBox", "0 0 10 10")
-      	.attr("refX", 10)
-      	.attr("refY", 5)
-      	.attr("orient", "auto")
-      	.attr("markerWidth", 2.0)
-      	.attr("markerHeight", 1.8) 
-      	.append("polyline")
-         .attr("points", "0,0 10,5 0,10 1,5")	  
-
-      svg.append("g").attr("class","arcs")
-      .selectAll("path").data(arcLines)
-      .enter().append("path")
-      .attr("class","arc")
-      .attr("d",path)
-      
-      svg.append("g").attr("class","currents")
-      .selectAll("path").data(flowLines)
-      .enter().append("path")
-      //.style("marker-end", "url(#arrowHead)")
-      .attr("class","flows")
-      .attr("d",path)
-      
-      svg.append("g").attr("class","flyers")
-      .selectAll("path").data(links)
-      .enter().append("path")
-      .attr("class","flyer")
-      .attr("d", function(d) { return swoosh(flying_arc(d)) })
-
-      refresh();
+      refresh(0);
 
       (function transition() {
       d3.transition()
-      .duration(100)
+      .duration(500)
       .each("start", function() {
          time_idx += 1;
-         //console.log(time_idx);
-
-         flowLines = [];
-         svg.select(".currents")
-         .selectAll("path").data(make_flows(flow))
-         .enter().append("path")
-         .attr("class","flows")
-         .attr("d",path);
-         /*
-         .attr("fill", function(d) {console.log(d.properties.color); return d.properties.color})
-         .attr("stroke", function(d) {console.log(d.properties.color); return d.properties.color});
-         */
 
          d3.select("#nPeriod-value").text(time_idx%72);
          d3.select("#nPeriod").property("value", time_idx%72);
          
-         refresh();
+         refresh(1);
       })
       .transition()
       .each("end", transition);
@@ -303,31 +272,71 @@ queue()
 }
 
 function make_flows(locations) {
+   //console.log("making flow for time "+time_idx+" "+normed_zoom);
+      var z = normed_zoom * 5 + 2;
       flowLines = []; // global
+      var idx = time_idx % 72;
       locations.forEach(function(e,i,a) {
          // temporary flow line indicators
          // should be normalized with width indicating strength of flow?
          var num = e.zonal.length;
-         var idx = time_idx % num;
          var mag = Math.sqrt(e.zonal[idx]*e.zonal[idx]
             + e.medial[idx]*e.medial[idx]); // total flow strength
-         var norm= Math.abs(e.zonal[idx]) + Math.abs(e.medial[idx]);
+         //var norm= Math.abs(e.zonal[idx]) + Math.abs(e.medial[idx]);
 
          // TODO input field for this threshold
          if (Math.abs(mag) > 0.05) {
-            var uf = 0.8*e.zonal[idx] / mag;
-            var vf = 0.8*e.medial[idx] / mag;
+            var uf = e.zonal[idx]; // / mag;
+            var vf = e.medial[idx]; // / mag;
 
-            var source = [e.center[0]+uf, e.center[1]+vf]
-            var target = [e.center[0]-uf, e.center[1]-vf]
-            var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[source,target]}}
-            //var feature = {"type":"Feature","geometry":{"type":"Polygon","coordinates":[source,target]}}
+            var source = [e.center[0]+uf, e.center[1]+vf];
+            var target = [e.center[0]-uf, e.center[1]-vf];
+
+            var side1 = [source[0]*0.75, source[1]*0.75];
+            var side2 = [e.center[0], e.center[1]-vf];
+
+            var color = mag > 0.2 ? "red" : "blue" ;
+            var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[source,target]},"options":{"opacity":mag*20.0,"color":color,"zoom":z}}
             flowLines.push(feature)
+
+            //flowLines[i] = feature;
          }
       })
+      //console.log(flowLines.length+" "+z);
       return flowLines;
 }
 
+function make_temps(locations) {
+      console.log("making flow for time "+time_idx+" "+normed_zoom);
+      var z = normed_zoom * 5 + 2;
+      var idx = time_idx % 72;
+      var c = 0;
+      locations.forEach(function(e,i,a) {
+         if ((idx % 2 == 0 && i % 2 == 1)
+            || (idx % 2 == 1 && i % 2 == 0)) {
+         
+         var num = e.temp.length;
+         c += 1;
+         
+         var t = e.temp[idx];;
+
+         var s1 = [e.center[0]+3, e.center[1]];
+         var s2 = [e.center[0]+3, e.center[1]+3];
+         var s3 = [e.center[0], e.center[1]+3];
+         var s4 = [e.center[0], e.center[1]];
+
+         h = (1.0 - (t+1.8 / 36)) * 240
+         var color = "hsla(" + h + ", 100%, 50%)";
+         color = t > 30 ? "red" : t > 25 ? "orange" : t > 20 ? "yellow" : t > 15 ? "green" : "blue";
+         //var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[s1,s2,s3,s4]},"options":{"opacity":0.5,"color":d3.hsl(color),"zoom":z}}
+         var feature = {"type":"Feature","geometry":{"type":"Point","coordinates":e.center},"options":{"opacity":0.5,"color":color,"zoom":z*3}}
+
+         tempspots[i] = feature;
+         }
+      })
+      console.log(tempspots.length+" "+c);
+      return tempspots;
+}
 function flying_arc(pts) {
    var source = pts.source,
        target = pts.target;
@@ -350,39 +359,63 @@ function flow_vector(pts) {
    return result;
 }
 
-function refresh() {
-   svg.selectAll(".land").attr("d", path);
-   svg.selectAll("circle").attr("r", proj.scale());
-
-   /*
+function refresh(bool) {
+      /*
    svg.selectAll(".point").attr("d", path)
       .attr("opacity", function(d) {
             return fade_at_edge(d)
             });
             */
 
-   /*
-   svg.selectAll(".arc").attr("d", path)
-      .attr("opacity", function(d) {
-            return fade_at_edge(d)
-            });
-            */
+   if (bool) {
+      // new data
+      var f = make_flows(flow);
+      var t = make_temps(celcius);
 
-   svg.selectAll(".flows").attr("d", path)
+      svg.select(".currents")
+         .selectAll("path").data(f)
+         .enter().append("path")
+         .attr("class","flows")
+         .attr("d", path)
+
+      svg.select(".heat")
+         .selectAll("path").data(t)
+         .enter().append("path")
+         .attr("class","temperature")
+         .attr("d", path)
+   }
+   svg.selectAll(".land").attr("d", path);
+   svg.selectAll("circle").attr("r", proj.scale());
+
+   svg.selectAll("marker")
+      .attr("markerHeight", 1.0*normed_zoom+3.0)
+      .attr("markerWidth", 1.0*normed_zoom+2.0)
+      //.selectAll("path").data(f)
+      //.enter().append("path")
+      //.style("fill", function(d) { return d.options.color;});
+
+   //svg.selectAll("marker").attr("fill", "Blue");
+
+
       /*
+   svg.selectAll(".flows").attr("d", path);
       .attr("opacity", function(d) {
-            return fade_at_edge(d)
-            });
-            // TODO looks nice but is processor intensive
-            */
+         return fade_at_edge(d)
+         });
+         // TODO looks nice but is processor intensive
+         */
 
-   /*
-   svg.selectAll(".flyer")
-      .attr("d", function(d) { return swoosh(flying_arc(d)) })
-      .attr("opacity", function(d) {
-            return fade_at_edge(d)
-            });
-            */
+   svg.selectAll(".temperature").attr("d", path)
+
+   svg.selectAll(".flows").attr("d",path)
+         .style("stroke", function(d) { return d.options.color;})
+         .style("stroke-width", function(d) { return d.options.zoom;})
+   svg.selectAll(".temperature").attr("d",path)
+         .style("stroke", function(d) { return d.options.color;})
+         .style("fill", function(d) { return d.options.color;})
+         .style("stroke-width", function(d) { return d.options.zoom;})
+      //.selectAll("marker-end")
+      //.style("fill", function(d) { return d.options.color;})
 }
 
 function fade_at_edge(d) {
@@ -429,7 +462,7 @@ function mousemove() {
          o1[1];
       proj.rotate(o1);
       sky.rotate(o1);
-      refresh();
+      refresh(0);
    }
 }
 function mouseup() {
@@ -443,13 +476,13 @@ function zoomStart() {
 }
 
 function zoomed() {
-   var z1 = d3.event.scale - 1;
-   var s1 = Math.round((proj_zoom[1]-proj_zoom[0])*z1 + proj_zoom[0]);
-   var s2 = Math.round((sky_zoom[1]-sky_zoom[0])*z1 + sky_zoom[0]);
+   normed_zoom = d3.event.scale - 1.0;
+   var s1 = Math.round((proj_zoom[1]-proj_zoom[0])*normed_zoom+ proj_zoom[0]);
+   var s2 = Math.round((sky_zoom[1]-sky_zoom[0])*normed_zoom + sky_zoom[0]);
 
    proj.scale(s1);
    sky.scale(s1);
-   refresh();
+   refresh(0);
 }
 
 function zoomEnd() {
