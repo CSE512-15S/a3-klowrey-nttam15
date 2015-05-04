@@ -41,6 +41,7 @@
    }
 
    .buttons {
+      padding-left: 13em;
       padding: 1em;
       float: left;
    }
@@ -75,7 +76,7 @@
   </label>
   <input type="range" min="1" max="72" id="nPeriod">
 </p>
-<div id="tools" class="tools">
+<p>
    <div class="buttons">
    <input name="stopButton" 
    type="button" 
@@ -87,7 +88,7 @@
    value="Resume" 
    class="button"
    onclick="resume_button()" />
-</div>
+   </div>
 
    <svg x="100" width="500" height="50" class="legend">
       <text x="0" y="20" fill="black">33 C</text>
@@ -121,7 +122,7 @@
       <text x="385" y="20" fill="black">&lt;5 C</text>
       <rect x="385" y="25" width="50" height="50" fill="#5095be" /> 
    </svg>
-</div>
+</p>
    <script src="scripts/d3.v3.min.js"></script>
    <script src="scripts/queue.v1.min.js"></script>
    <script src="scripts/topojson.v0.min.js"></script>
