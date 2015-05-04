@@ -47,12 +47,12 @@
       font-family: "Arial", Helvetica, sans-serif;
    }
 
-   .text {
+   .scrubber {
       display: inline-block;
-      width: 300px;
-      text-align: right
+      width: 280px;
+      text-align: center; 
       font-family: "Arial", Helvetica, sans-serif;
-      color: red;
+      color: black;
    }
 
 </style>
@@ -63,18 +63,16 @@
       Yo, 2012 Temp and current data.
    </h1>
 <p>
-  <label for="nPeriod" class="text">
-         Time Period = <span id="nPeriod-value">…</span>
+  <label for="nPeriod" class="scrubber">
+         Period: <span id="nPeriod-value">…</span>
   </label>
   <input type="range" min="1" max="72" id="nPeriod">
 </p>
-<div id="Pause">
+<div id="Buttons">
    <input name="stopButton" 
    type="button" 
    value="Pause" 
    onclick="pause_button()" />
-</div>
-<div id="Resume">
    <input name="startButton" 
    type="button" 
    value="Resume" 
@@ -156,6 +154,7 @@ queue()
          .attr("id", "ocean_fill")
          .attr("cx", "75%")
          .attr("cy", "25%");
+
       ocean_fill.append("stop").attr("offset", "5%").attr("stop-color", "#fff");
       ocean_fill.append("stop").attr("offset", "100%").attr("stop-color", "grey");
 
@@ -307,17 +306,30 @@ queue()
          .style("fill", "url(#globe_shading)");
       refresh(0);
 
+      d3.select("#nPeriod").on("input", function() {
+            pause_button(); // freeze
+            console.log("inputting: "+this.value);
+            var day = this.value * 5;
+
+            d3.select("#nPeriod-value").text(periodFromDay(2012, day)+" to "+periodFromDay(2012, day+5));
+            d3.select("#nPeriod").property("value", this.value);
+
+            time_idx = this.value % 72;
+            refresh(1);
+         });
+
       (function transition() {
       d3.transition()
       .duration(500)
       .each("start", function() {
          if (play_bool == true) {
             time_idx += 1;
+
             var day = (time_idx % 72) * 5;
 
-            d3.select("#nPeriod-value").text(periodFromDay(2012, day)+"->"+periodFromDay(2012, day+5));
+            d3.select("#nPeriod-value").text(periodFromDay(2012, day)+" to "+periodFromDay(2012, day+5));
             d3.select("#nPeriod").property("value", time_idx%72);
-            
+
             refresh(1);
          }
       })
@@ -569,5 +581,14 @@ function zoomEnd() {
 
 }
    </script>
+   <p>
+      This visualization allows the user to explore the interaction between surface current flow and temperature across the worlds oceans. 2012 was a year with abnormal weather patters; the world's oceans act as a regulator for the weather. As all the bodies of water are connected, it is useful to explore this data as a representation of where it actually is: on a globe.
+   </p>
+   <p>
+      Current lines are drawn with a small arrow indicating flow direction, with opacity and length of the arrow vector indicating flow strength. As shape sizes on a digital screen are difficult to measure with the human eye, the current vectors are meant to give a sense as to the flow of water in a particular region, not as a means to record and study particular values.
+   </p>
+   <p>
+      Temperature is binned into zones. Obviously the warmest waters are along the world's equators, but it becomes apparent that the current flow pushes colder or warmer waters into different zones along coasts and gulfs while sometimes aggregating in the open expanses of ocean.
+   </p>
 </body>
 
