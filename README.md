@@ -5,7 +5,8 @@ Thanh Tam Nguyen
 #Project Name: Global Ocean Circulation and Temperature
 Surface ocean circulation and temperature from satellites are visualized on global and regional scales. D3 is used to look at circulation systems and distribution of sea surface temperature around the world.
 #Running Instructions:
-http://klowrey.github.io/nn_visual Global surface velocity and temperature are animated automatically in time for year 2012.
+
+http://cse512-15s.github.io/a3-klowrey-nttam15/ Warning: as the data sets are moderately large (~20mb) it may take a few moments to load. Global surface velocity and temperature are animated automatically in time for year 2012.
 Move the globe around to see how the current field looks like in the Atlantic (between America and Europe) and Pacific (between Asia and America) Oceans. 
 Move the globe down and up to look at distribution of the surface velocity and temperature in different parts of the oceans, for example the subtropical part of the oceans in the Northern and Southern hemispheres. Water temperature is distributed as bands with warmer temperature close to the equator and in the tropical oceans and colder temperature in the subtropical oceans.
 Select a specific part of the oceans to look in detail and use zooming in and out to see the close up and wide shots of the surface currents and temperature.
