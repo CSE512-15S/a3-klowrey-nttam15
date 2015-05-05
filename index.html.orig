@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+   .land {
+      fill: #999;
+      stroke-opacity: 1;
+   }
+
+   .bg {
+      fill: #999;
+   }
+
+   .graticule {
+      fill: none;
+      stroke: black;
+      stroke-width:.5;
+      opacity:.2;
+   }
+
+   .labels {
+      font: 8px sans-serif;
+      fill: black;
+      opacity: .5;
+
+      display:none;
+   }
+
+   .noclicks {
+      pointer-events:none;
+   }
+
+   .point {  opacity:.6; }
+
+   .arcs {
+      opacity:.1;
+      stroke: gray;
+      stroke-width: 3;
+   }
+   .flows {
+      opacity: 1.0;
+      stroke: blue;
+      stroke-width: 4;
+   }
+   .currents {
+      opacity: 1.0;
+      stroke: gray;
+      stroke-width: 4;
+   }
+
+   .flyers {
+      stroke-width:1;
+      opacity: .6;
+      stroke: darkred; 
+   }
+   .arc, .flyer {
+      stroke-linejoin: round;
+      fill:none;
+   }
+   .arc { }
+   .flyer { }
+   .flyer:hover { }
+
+</style>
+
+<body>
+
+<p>
+  <label for="nPeriod" 
+         style="display: inline-block; width: 240px; text-align: right">
+         5d Time Period = <span id="nPeriod-value">…</span>
+  </label>
+  <input type="range" min="1" max="72" id="nPeriod">
+  // TODO button to stop / start the automatic transition
+</p>
+
+   <!--
+   <script src="http://d3js.org/d3.v3.min.js"></script>
+   <script src="http://d3js.org/queue.v1.min.js"></script>
+   <script src="http://d3js.org/topojson.v0.min.js"></script>
+   -->
+   <script src="scripts/d3.v3.min.js"></script>
+   <script src="scripts/queue.v1.min.js"></script>
+   <script src="scripts/topojson.v0.min.js"></script>
+   <script>
+
+   d3.select(window)
+   .on("mousemove", mousemove)
+   .on("mouseup", mouseup);
+
+   var zoom = d3.behavior.zoom()
+   .scaleExtent([1, 2])
+   .on("zoomstart", zoomStart)
+   .on("zoom", zoomed)
+   .on("zoomend", zoomEnd);
+
+   var width = 1280,
+   height = 720;
+
+   var proj_zoom = [220, 660];
+   var sky_zoom = [300, 900];
+
+   //var proj = d3.geo.orthographic()
+   var proj = d3.geo.orthographic()
+   .translate([width / 2, height / 2])
+   .clipAngle(90)
+   .scale(220);
+
+   var sky = d3.geo.orthographic()
+   .translate([width / 2, height / 2])
+   .clipAngle(90)
+   .scale(300);
+
+   var path = d3.geo.path().projection(proj).pointRadius(2);
+
+   var swoosh = d3.svg.line()
+   .x(function(d) { return d[0] })
+   .y(function(d) { return d[1] })
+   .interpolate("cardinal")
+   .tension(.0);
+
+   var links = [],
+   arcLines = [],
+   flowLines = [],
+   flow = [];
+
+   var svg = d3.select("body").append("svg")
+   .attr("width", width)
+   .attr("height", height)
+   .on("mousedown", mousedown)
+
+queue()
+   .defer(d3.json, "world-110m.json")
+   //.defer(d3.json, "places.json")
+   //.defer(d3.json, "data/2012_fifth_data.json")
+   .defer(d3.json, "data/2012_third_data.json")
+   //.defer(d3.json, "data/2012_half_data.json")
+   .await(ready);
+
+   // places is now the flow data
+   function ready(error, world, places) {
+      var ocean_fill = svg.append("defs").append("radialGradient")
+         .attr("id", "ocean_fill")
+         .attr("cx", "75%")
+         .attr("cy", "25%");
+      ocean_fill.append("stop").attr("offset", "5%").attr("stop-color", "#fff");
+      ocean_fill.append("stop").attr("offset", "100%").attr("stop-color", "#ffffff");
+
+      var globe_highlight = svg.append("defs").append("radialGradient")
+         .attr("id", "globe_highlight")
+         .attr("cx", "75%")
+         .attr("cy", "25%");
+      globe_highlight.append("stop")
+         .attr("offset", "5%").attr("stop-color", "#ffd")
+         .attr("stop-opacity","0.6");
+      globe_highlight.append("stop")
+         .attr("offset", "100%").attr("stop-color", "#ba9")
+         .attr("stop-opacity","0.2");
+
+      var globe_shading = svg.append("defs").append("radialGradient")
+         .attr("id", "globe_shading")
+         .attr("cx", "55%")
+         .attr("cy", "45%");
+      globe_shading.append("stop")
+         .attr("offset","10%").attr("stop-color", "#fff")
+         .attr("stop-opacity","0")
+         globe_shading.append("stop")
+         .attr("offset","100%").attr("stop-color", "#505962")
+         .attr("stop-opacity","0.3")
+
+      var drop_shadow = svg.append("defs").append("radialGradient")
+         .attr("id", "drop_shadow")
+         .attr("cx", "50%")
+         .attr("cy", "50%");
+      drop_shadow.append("stop")
+         .attr("offset","20%").attr("stop-color", "#000")
+         .attr("stop-opacity",".5")
+         drop_shadow.append("stop")
+         .attr("offset","100%").attr("stop-color", "#000")
+         .attr("stop-opacity","0")  
+
+      svg.append("ellipse")
+         .attr("cx", width / 2).attr("cy", height * 0.8)
+         .attr("rx", proj.scale()*.90)
+         .attr("ry", proj.scale()*.25)
+         .attr("class", "noclicks")
+         .style("fill", "url(#drop_shadow)");
+
+      svg.append("circle")
+         .attr("cx", width / 2).attr("cy", height / 2)
+         .attr("r", proj.scale())
+         .attr("class", "noclicks")
+         .style("fill", "url(#ocean_fill)");
+
+      svg.append("path")
+         .datum(topojson.object(world, world.objects.land))
+         .attr("class", "land noclicks")
+         .attr("d", path);
+
+      svg.append("circle")
+         .attr("cx", width / 2).attr("cy", height / 2)
+         .attr("r", proj.scale())
+         .attr("class","noclicks")
+         .style("fill", "url(#globe_highlight)");
+
+      svg.append("circle")
+         .attr("cx", width / 2).attr("cy", height / 2)
+         .attr("r", proj.scale())
+         .attr("class","noclicks")
+         .style("fill", "url(#globe_shading)");
+
+      /*
+         // GRID POINTS
+      svg.append("g").attr("class","points")
+         .selectAll("text").data(places.features)
+         .enter().append("path")
+         .attr("class", "point")
+         .attr("d", path);
+         */
+
+      // spawn links between cities as source/target coord pairs
+      
+      // TODO could do something like above where it
+      // draw lines between adjacent coordinates
+      // TODO way to select which year of data to display?
+         places.features.forEach(function(a) {
+            flow.push({
+               center: a.geometry.coordinates,
+               zonal: a.geometry.uf,
+               medial: a.geometry.vf
+               });
+         });
+
+
+      // build geoJSON features from links array
+      links.forEach(function(e,i,a) {
+         // arclines can just use built in linestring d3 type
+         var feature =   { "type": "Feature", "geometry": { "type": "LineString", "coordinates": [e.source,e.target] }}
+         arcLines.push(feature)
+      })
+
+<<<<<<< HEAD
+      flow.forEach(function(e,i,a) {
+         // temporary flow line indicators
+         // should be normalized with width indicating strength of flow?
+         var num = e.zonal.length;
+         var idx = time_idx % num;
+         var mag = Math.sqrt(e.zonal[idx]^2 + e.medial[idx]^2); // total flow strength
+
+         var uf = 10 * e.zonal[idx] / mag;
+         var vf = 10 * e.medial[idx] / mag;
+
+         var source = [e.center[0]+uf, e.center[1]+vf]
+         var target = [e.center[0]-uf, e.center[1]-vf]
+         var feature = {"type":"Feature","geometry":{"type":"LineString","coordinates":[source,target]}}
+         flowLines.push(feature)
+      })
+
+      svg.append("g").attr("class","arcs")
+      .selectAll("path").data(arcLines)
+      .enter().append("path")
+      .attr("class","arc")
+      .attr("d",path)
+      
+      svg.append("g").attr("class","currents")
+      .selectAll("path").data(flowLines)
+      .enter().append("path")
+      .attr("class","flows")
+      .attr("d",path)
+      
+      svg.append("g").attr("class","flyers")
+      .selectAll("path").data(links)
+      .enter().append("path")
+      .attr("class","flyer")
+      .attr("d", function(d) { return swoosh(flying_arc(d)) })
+
+      refresh();
+
+      (function transition() {
+      d3.transition()
+      .duration(100)
+      .each("start", function() {
+         time_idx += 1;
+         //console.log(time_idx);
+         flowLines = []; // clear out previous
+         line_opacity = []; 
+
+         var test = []
+
+         flow.forEach(function(e,i,a) {
+            // temporary flow line indicators
+            // should be normalized with width indicating strength of flow?
+            var num = e.zonal.length;
+            var idx = time_idx % num;
+            var mag = Math.sqrt(e.zonal[idx]^2 + e.medial[idx]^2); // total flow strength
+
+            var uf = 10 * e.zonal[idx] / mag;
+            var vf = 10 * e.medial[idx] / mag;
+
+            var source = [e.center[0]+uf, e.center[1]+vf]
+            var target = [e.center[0]-uf, e.center[1]-vf]
+            var feature = {"type":"Feature",
+               "geometry":{"type":"LineString","coordinates":[source,target]},
+               "type":"Feature",
+               "properties":{"color":"Red"}}
+            flowLines.push(feature)
+            if (mag != 0) {
+               test = [uf, vf];
+            }
+         })
+
+         console.log(flowLines[0].properties);
+
+         svg.select(".currents")
+         .selectAll("path").data(flowLines)
+         .enter().append("path")
+         .attr("class","flows")
+         .attr("d",path)
+         .attr("fill", function(d) {console.log(d.properties.color); return d.properties.color})
+         .attr("stroke", function(d) {console.log(d.properties.color); return d.properties.color});
+
+         d3.select("#nPeriod-value").text(time_idx%72);
+         d3.select("#nPeriod").property("value", time_idx%72);
+         
+         refresh();
+      })
+      .transition()
+      .each("end", transition);
+      })();
+
+=======
+flow.forEach(function(e,i,a) {
+      // temporary flow line indicators
+      // should be normalized with width indicating strength of flow?
+      // TODO change opacity with the strength of flows
+      var mag = Math.sqrt(Math.pow(e.zonal[0], 2) + Math.pow(e.medial[0], 2)); // total flow strength
+      //var mag = 0.06; 
+
+      var uf = e.zonal[0] / mag;
+      var vf = e.medial[0] / mag;
+
+      var source = [e.center[0] + uf,
+                    e.center[1] + vf ]
+      var target = [e.center[0] - uf,
+                    e.center[1] - vf ]
+      var feature =   { "type": "Feature", "geometry": { "type": "LineString", "coordinates": [source,target] }}
+      flowLines.push(feature)
+      })
+      
+svg.append("defs").append("marker")
+	.attr("id", "arrowHead")
+	.attr("viewBox", "0 0 10 10")
+	.attr("refX", 10)
+	.attr("refY", 5)
+	.attr("orient", "auto")
+	.attr("markerWidth", 1.6) 
+	.attr("markerHeight", 1.3) 
+	.append("polyline")
+          .attr("points", "0,0 10,5 0,10 1,5")	  
+
+svg.append("g").attr("class","arcs")
+.selectAll("path").data(arcLines)
+.enter().append("path")
+.attr("class","arc")
+.attr("d",path)
+
+svg.append("g").attr("class","flows")
+.selectAll("path").data(flowLines)
+.enter().append("path")
+   .style("marker-end", "url(#arrowHead)")
+.attr("class","flows")
+.attr("d",path)
+
+svg.append("g").attr("class","flyers")
+.selectAll("path").data(links)
+.enter().append("path")
+.attr("class","flyer")
+.attr("d", function(d) { return swoosh(flying_arc(d)) })
+
+refresh();
+>>>>>>> bc622c14bfa1738b6ec44870de9054c68e97487a
+}
+
+function flying_arc(pts) {
+   var source = pts.source,
+       target = pts.target;
+
+   var mid = location_along_arc(source, target, .5);
+   var result = [ proj(source),
+       sky(mid),
+       proj(target) ]
+   return result;
+}
+
+function flow_vector(pts) {
+   var zonal = pts.uf,
+       medial= pts.vf;
+
+   //var mid = location_along_arc(source, target, .5);
+   var result = [ proj(source),
+       sky(mid),
+       proj(target) ]
+   return result;
+}
+
+function refresh() {
+   svg.selectAll(".land").attr("d", path);
+   svg.selectAll("circle").attr("r", proj.scale());
+
+   svg.selectAll(".point").attr("d", path)
+      .attr("opacity", function(d) {
+            return fade_at_edge(d)
+            });
+
+   svg.selectAll(".arc").attr("d", path)
+      .attr("opacity", function(d) {
+            return fade_at_edge(d)
+            });
+
+   svg.selectAll(".flows").attr("d", path);
+
+   svg.selectAll(".flyer")
+      .attr("d", function(d) { return swoosh(flying_arc(d)) })
+      .attr("opacity", function(d) {
+            return fade_at_edge(d)
+            });
+}
+
+function fade_at_edge(d) {
+   var centerPos = proj.invert([width/2,height/2]),
+       arc = d3.geo.greatArc(),
+       start, end;
+   // function is called on 2 different data structures..
+   if (d.source) {
+      start = d.source, 
+            end = d.target;  
+   }
+   else {
+      start = d.geometry.coordinates[0];
+      end = d.geometry.coordinates[1];
+   }
+
+   var start_dist = 1.57 - arc.distance({source: start, target: centerPos}),
+       end_dist = 1.57 - arc.distance({source: end, target: centerPos});
+
+   var fade = d3.scale.linear().domain([-.1,0]).range([0,.1]) 
+      var dist = start_dist < end_dist ? start_dist : end_dist; 
+
+   return fade(dist)
+}
+
+function location_along_arc(start, end, loc) {
+   var interpolator = d3.geo.interpolate(start,end);
+   return interpolator(loc)
+}
+
+// modified from http://bl.ocks.org/1392560
+var m0, o0, z0;
+function mousedown() {
+   m0 = [d3.event.pageX, d3.event.pageY];
+   o0 = proj.rotate();
+   d3.event.preventDefault();
+}
+function mousemove() {
+   if (m0) {
+      var m1 = [d3.event.pageX, d3.event.pageY]
+         , o1 = [o0[0] + (m1[0] - m0[0]) / 6, o0[1] + (m0[1] - m1[1]) / 6];
+      o1[1] = o1[1] > 30  ? 30  :
+         o1[1] < -30 ? -30 :
+         o1[1];
+      proj.rotate(o1);
+      sky.rotate(o1);
+      refresh();
+   }
+}
+function mouseup() {
+   if (m0) {
+      mousemove();
+      m0 = null;
+   }
+}
+function zoomStart() {
+   z0 = d3.event.scale;
+}
+
+function zoomed() {
+   var z1 = d3.event.scale - 1;
+   var s1 = Math.round((proj_zoom[1]-proj_zoom[0])*z1 + proj_zoom[0]);
+   var s2 = Math.round((sky_zoom[1]-sky_zoom[0])*z1 + sky_zoom[0]);
+
+   console.log(s1);
+   //var = z1 - z0;
+   //o1[1] = o1[1] > 30  ? 30  :
+   //   o1[1] < -30 ? -30 :
+   //   o1[1];
+
+   proj.scale(s1);
+   sky.scale(s1);
+   refresh();
+}
+
+function zoomEnd() {
+
+}
+function zoom() {
+  
+  svg.attr("transform", "translate(" + d3.event.translate + ") scale(" + d3.event.scale + ")");
+}
+   </script>
+</body>
+
